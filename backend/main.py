@@ -1,15 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.core.logging import setup_logging, get_logger
 from app.api.v1.router import api_router
-import logging
 
-logging.basicConfig(
-    level=getattr(logging, settings.log_level),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-
-logger = logging.getLogger(__name__)
+setup_logging()
+logger = get_logger(__name__)
 
 app = FastAPI(
     title="Cognitive Radar API",
@@ -29,6 +25,17 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=f"/api/{settings.api_version}")
+
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting Cognitive Radar API")
+    logger.info(f"Environment: {settings.environment}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Shutting down Cognitive Radar API")
 
 
 @app.get("/")
