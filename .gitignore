@@ -103,5 +103,7 @@ gcloud/
 *.cache
 .sass-cache/
 
-#md files
+# Markdown files (except README)
 *.md
+!README.md
+!**/README.md
