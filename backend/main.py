@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
+from app.core.rate_limiter import rate_limit_middleware
 from app.api.v1.router import api_router
 
 setup_logging()
@@ -23,6 +24,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.middleware("http")(rate_limit_middleware)
 
 app.include_router(api_router, prefix=f"/api/{settings.api_version}")
 
