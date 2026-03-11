@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.core.logging import setup_logging, get_logger
 from app.core.rate_limiter import rate_limit_middleware
 from app.api.v1.router import api_router
+from app.api.v1.endpoints.websocket import router as websocket_router
 
 setup_logging()
 logger = get_logger(__name__)
@@ -28,6 +29,7 @@ app.add_middleware(
 app.middleware("http")(rate_limit_middleware)
 
 app.include_router(api_router, prefix=f"/api/{settings.api_version}")
+app.include_router(websocket_router, prefix=f"/api/{settings.api_version}")
 
 
 @app.on_event("startup")
