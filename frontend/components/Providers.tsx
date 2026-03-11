@@ -5,6 +5,7 @@ import { GraphProvider } from '@/context/GraphContext';
 import { SessionProvider } from '@/context/SessionContext';
 import { WebSocketProvider } from '@/context/WebSocketContext';
 import { InsightProvider } from '@/context/InsightContext';
+import { TranscriptProvider } from '@/context/TranscriptContext';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -12,7 +13,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <WebSocketProvider>
         <GraphProvider>
           <InsightProvider>
-            {children}
+            <TranscriptProvider>
+              {children}
+            </TranscriptProvider>
           </InsightProvider>
         </GraphProvider>
       </WebSocketProvider>

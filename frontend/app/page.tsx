@@ -9,6 +9,7 @@ import { TimelinePanel } from '@/components/panels/TimelinePanel';
 import { useSession } from '@/context/SessionContext';
 import { useWebSocket } from '@/context/WebSocketContext';
 import { useRealtimeUpdates } from '@/hooks/useRealtimeUpdates';
+import { useTranscriptSync } from '@/hooks/useTranscriptSync';
 import { apiClient } from '@/lib/api-client';
 
 function MainPage() {
@@ -16,6 +17,7 @@ function MainPage() {
   const { connect } = useWebSocket();
 
   useRealtimeUpdates(session.sessionId);
+  useTranscriptSync();
 
   useEffect(() => {
     const initSession = async () => {
