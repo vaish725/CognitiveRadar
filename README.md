@@ -1,10 +1,10 @@
-# Idea Weaver
+# CognitiveRadar
 
 A modern, AI-powered knowledge graph and visualization platform built with React, TypeScript, and Vite.
 
 ## Overview
 
-Idea Weaver is an intelligent web application that helps users organize, visualize, and explore complex ideas and concepts through an interactive knowledge graph. It leverages AI to extract relationships, identify patterns, and provide insights from various data sources.
+CognitiveRadar is an intelligent web application that helps users organize, visualize, and explore complex ideas and concepts through an interactive knowledge graph. It leverages AI to extract relationships, identify patterns, and provide insights from various data sources.
 
 ## Features
 
@@ -216,14 +216,6 @@ For issues, questions, or suggestions:
 
 See [CHANGELOG.md](./CHANGELOG.md) for version history and updates.
 
-## Roadmap
-
-- [ ] Collaborative editing
-- [ ] Advanced graph algorithms
-- [ ] Mobile app
-- [ ] Browser extension
-- [ ] API client libraries
-- [ ] Community plugins
 
 ---
 
