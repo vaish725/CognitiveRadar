@@ -16,6 +16,20 @@ CognitiveRadar is an intelligent web application that helps users organize, visu
 - **Responsive Design**: Beautiful UI that works on desktop and mobile devices
 - **Dark Mode Support**: Theme toggle for comfortable viewing in any environment
 
+## Screenshots
+
+### Landing Page
+![CognitiveRadar Landing Page](./imgs/cognitiveRadar%20landing%20page.jpeg)
+The main entry point to CognitiveRadar where users can create new sessions or access existing ones. The landing page provides a clean, intuitive interface with navigation to all major features and real-time collaboration capabilities.
+
+### Text Input Page
+![CognitiveRadar Input Page](./imgs/cognitiveRadar%20input%20page.jpeg)
+The core analysis interface with the text input area prominently displayed. Users can paste or type content here for AI-powered analysis. The page shows the integrated layout with the text input panel, ready to process user submissions.
+
+### Analysis Example
+![CognitiveRadar Text Input Example](./imgs/cognitiveRadar%20text%20input%20example.jpeg)
+A demonstration of CognitiveRadar in action, showing how the application processes and visualizes analyzed text. This screenshot illustrates the knowledge graph generation, concept extraction, and relationship mapping capabilities.
+
 ## Tech Stack
 
 ### Frontend
