@@ -42,9 +42,11 @@ A demonstration of CognitiveRadar in action, showing how the application process
 - **Supabase** - Backend as a Service
 
 ### Backend
-- Python (FastAPI) - High-performance backend API
-- PostgreSQL/Supabase - Data storage
-- Redis - Caching and real-time updates
+- **Supabase Edge Functions** (Deno/TypeScript) - Serverless functions for AI analysis and data operations
+- **PostgreSQL/Supabase** - Data storage with Row Level Security
+- **Google Gemini API** - LLM-powered knowledge graph extraction and critical-thinking analysis
+
+> **Note:** The backend was originally planned as a standalone Python/FastAPI service (see early commit history). It was replaced with Supabase Edge Functions to cut scope for a solo-maintained project — one platform for DB, storage, auth, and compute instead of a separately hosted API service.
 
 ## Getting Started
 
@@ -135,15 +137,15 @@ VITE_API_URL=http://localhost:8000
 
 ## API Documentation
 
-The backend API is documented using OpenAPI/Swagger. When running the backend server, visit `/docs` for interactive API documentation.
+There is no separate REST API. The frontend calls Supabase Edge Functions directly via `supabase.functions.invoke(...)` (see [src/lib/api.ts](./src/lib/api.ts)).
 
-### Key Endpoints
+### Edge Functions
 
-- `POST /api/extract/text` - Extract concepts and relationships from text
-- `POST /api/graph/nodes` - Create graph nodes
-- `POST /api/graph/edges` - Create relationships between nodes
-- `GET /api/graph/nodes` - Retrieve graph nodes
-- `GET /api/insights` - Get AI-generated insights
+- `analyze-text` - Extract a knowledge graph (nodes, edges, insights) from pasted text
+- `analyze-youtube` - Extract a knowledge graph from a YouTube URL
+- `analyze-upload` - Extract a knowledge graph from an uploaded file (text, PDF, audio/video)
+- `transcribe-audio` - Transcribe a recorded audio clip, then extract a knowledge graph
+- `thinking-engine` - Re-analyze an existing session's graph for logical gaps, contradictions, and follow-up questions
 
 ## Database Schema
 
