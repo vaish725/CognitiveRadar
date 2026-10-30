@@ -14,7 +14,7 @@ const SYSTEM_PROMPT = `You are a critical thinking analysis engine. You receive 
 1. **Circular Reasoning**: Detect any chains where A supports B supports C supports A. Flag the cycle.
 2. **Logical Fallacies**: Identify common fallacies — ad hominem, straw man, false dichotomy, appeal to authority, slippery slope, hasty generalization, red herring, etc.
 3. **Unsupported Claims**: Find claims that have no supporting evidence nodes connected.
-4. **Weak Evidence**: Flag evidence nodes with low confidence or that support high-confidence claims disproportionately.
+4. **Weak Evidence**: Flag evidence that is anecdotal, a single data point, or too weak for the claim it supports. The confidence numbers are the extraction model's own uncalibrated guesses; do not treat them as evidence strength.
 5. **Follow-up Questions**: Generate probing questions that would strengthen or challenge the argument structure.
 6. **Hidden Assumptions**: Identify implicit premises that the argument relies on but doesn't state.
 
