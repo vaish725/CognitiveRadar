@@ -49,12 +49,48 @@ function centerPull(strength: number) {
   return force;
 }
 
+/** Keeps nodes at least their radius plus `pad` apart, so circles and labels don't stack. */
+function collide(radius: (n: SimNode & { val?: number }) => number, pad: number) {
+  let nodes: Array<SimNode & { val?: number }> = [];
+  const force = () => {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i], b = nodes[j];
+        const dx = (b.x ?? 0) - (a.x ?? 0) || 0.01;
+        const dy = (b.y ?? 0) - (a.y ?? 0) || 0.01;
+        const dist = Math.hypot(dx, dy);
+        const min = radius(a) + radius(b) + pad;
+        if (dist < min) {
+          const push = ((min - dist) / dist) * 0.5;
+          a.x = (a.x ?? 0) - dx * push; a.y = (a.y ?? 0) - dy * push;
+          b.x = (b.x ?? 0) + dx * push; b.y = (b.y ?? 0) + dy * push;
+        }
+      }
+    }
+  };
+  force.initialize = (ns: Array<SimNode & { val?: number }>) => {
+    nodes = ns;
+  };
+  return force;
+}
+
+const nodeRadius = (n: { val?: number }) => Math.sqrt(n.val || 4) * 3;
+
 const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function KnowledgeGraph({ nodes, edges, highlightNodes, onNodeClick }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<ForceGraphMethods | undefined>();
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
-  const fit = useCallback(() => fgRef.current?.zoomToFit(400, 60), []);
+  // Fit everything in view, but never zoom in past 1.5x: on a compact graph a
+  // big zoom makes the circles huge relative to the labels and they collide.
+  const fit = useCallback(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    fg.zoomToFit(400, 90);
+    setTimeout(() => {
+      if (fg.zoom() > 1.5) fg.zoom(1.5, 300);
+    }, 450);
+  }, []);
   const zoomBy = useCallback((factor: number) => {
     const fg = fgRef.current;
     if (fg) fg.zoom(fg.zoom() * factor, 250);
@@ -73,9 +109,10 @@ const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function Knowledg
   useEffect(() => {
     const fg = fgRef.current;
     if (!fg) return;
-    fg.d3Force("charge")?.strength(-160);
-    fg.d3Force("link")?.distance(55);
-    fg.d3Force("gravity", centerPull(0.06));
+    fg.d3Force("charge")?.strength(-260);
+    fg.d3Force("link")?.distance(85);
+    fg.d3Force("gravity", centerPull(0.03));
+    fg.d3Force("collide", collide(nodeRadius, 34));
     fg.d3ReheatSimulation();
   }, []);
 
@@ -188,7 +225,8 @@ const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function Knowledg
         onNodeClick={(node: any) => onNodeClick?.(node.id)}
         enableZoomInteraction
         enablePanInteraction
-        cooldownTicks={100}
+        warmupTicks={120}
+        cooldownTicks={200}
         onEngineStop={() => {
           if (needsFit.current) {
             needsFit.current = false;
