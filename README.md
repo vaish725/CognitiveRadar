@@ -125,11 +125,11 @@ This is a working prototype, not a finished product.
 - **Quality is not yet measured.** There is no labelled evaluation set, so extraction accuracy is unknown. Node, relation and insight types are defined in `ontology.ts`, but the model applies them, and does so imperfectly (e.g. a link drawn in the wrong direction).
 - **Confidence and severity come from the model.** Each node's confidence is the model's own uncalibrated estimate, so the node panel leads with support counted from the graph and labels the model's number as an estimate. Insight severity (high / medium / low) follows a written rubric the model applies loosely; a code check against the graph's central claim is the planned next step.
 - **Light test coverage.** Tests cover validation, encoding and support counting, not the UI end to end.
-- **Leftover from the auth experiment:** the migrations still create a `profiles` table and a nullable `sessions.user_id` that nothing uses (see History).
+- **Unused tables:** the migrations still create a `profiles` table and a nullable `sessions.user_id` from an early sign-in experiment; nothing uses them.
 
-## History
+## How it evolved
 
-- **v1 (March 2026):** Python/FastAPI + Firestore + Next.js with WebSocket streaming, built phase by phase from a detailed plan. It grew to ~16,000 lines before the parts ran together end to end, and I stopped it. It's still in the git history (up to `059a502`).
-- **v2 (April 2026):** rebuilt thin on Supabase, scaffolded with the Lovable AI app builder, to get a working end-to-end baseline. Sign-in was added and rolled back the same day, which is why an unused `profiles` table remains.
-- **October 2026:** reviewed the v2 code and fixed what the review found: YouTube was sending the URL as text, so the model never saw the video; edge and insight inserts weren't checked; large files overflowed the call stack; upload policies blocked anonymous users; the API key was sent in the URL; type definitions were missing, so labels drifted; model confidence was shown as if it were measured. Unused template code and dependencies were removed.
-- **Next:** a rebuild of the original design in thin, deployed slices, with an evaluation set from the start and the live streaming graph last.
+- **v1, the full design (Mar 2026):** Python/FastAPI, Firestore, Next.js and WebSocket streaming, built from a detailed 20-phase plan. Building every layer before any of them ran together was the wrong order, so I stopped and rebuilt thin. The code is in the git history (up to `059a502`).
+- **v2, a working baseline (Apr 2026):** a thin end-to-end version on Supabase, scaffolded with Lovable to get a running app quickly.
+- **Hardening (Oct 2026):** I reviewed my own code and fixed what I found. Gemini now receives YouTube videos as video, not a URL in text. Model output is validated before saving, and rejections are shown. Large files no longer crash. Type definitions keep labels consistent. Confidence is shown honestly. Unused template code is gone.
+- **Next:** the original real-time design, built in thin, deployed slices with an evaluation set from the start.
