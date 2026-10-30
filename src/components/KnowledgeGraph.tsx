@@ -32,6 +32,23 @@ interface Props {
   onNodeClick?: (nodeId: string) => void;
 }
 
+type SimNode = { x?: number; y?: number; vx?: number; vy?: number };
+
+/** A d3-style force pulling every node toward the origin. */
+function centerPull(strength: number) {
+  let nodes: SimNode[] = [];
+  const force = (alpha: number) => {
+    for (const n of nodes) {
+      n.vx = (n.vx ?? 0) - (n.x ?? 0) * strength * alpha;
+      n.vy = (n.vy ?? 0) - (n.y ?? 0) * strength * alpha;
+    }
+  };
+  force.initialize = (ns: SimNode[]) => {
+    nodes = ns;
+  };
+  return force;
+}
+
 const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function KnowledgeGraph({ nodes, edges, highlightNodes, onNodeClick }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<ForceGraphMethods | undefined>();
@@ -49,6 +66,18 @@ const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function Knowledg
     zoomOut: () => zoomBy(1 / 1.4),
     fit,
   }));
+
+  // Layout forces. Nodes repel, links pull, and a gentle pull toward the centre
+  // keeps unconnected clusters close together instead of drifting apart (which
+  // forced fit-to-view to zoom far out and made labels overlap).
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    fg.d3Force("charge")?.strength(-160);
+    fg.d3Force("link")?.distance(55);
+    fg.d3Force("gravity", centerPull(0.06));
+    fg.d3ReheatSimulation();
+  }, []);
 
   // Fit the whole graph into view once the layout settles for new data.
   const needsFit = useRef(true);
