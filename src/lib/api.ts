@@ -1,11 +1,19 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export interface ValidationReport {
+  nodes: { received: number; saved: number; rejected: number };
+  edges: { received: number; saved: number; rejected: number };
+  insights: { received: number; saved: number; rejected: number; unresolvedRefs: number };
+  input?: { totalChars: number; analyzedChars: number };
+}
+
 export interface AnalyzeResult {
   sessionId: string;
   title: string;
   nodeCount: number;
   edgeCount: number;
   insightCount: number;
+  validation?: ValidationReport;
 }
 
 export async function analyzeText(content: string): Promise<AnalyzeResult> {
@@ -29,7 +37,8 @@ export async function analyzeYouTube(url: string): Promise<AnalyzeResult> {
 }
 
 export async function analyzeUpload(file: File): Promise<AnalyzeResult> {
-  const path = `anonymous/${Date.now()}-${file.name}`;
+  const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, "_").slice(-100);
+  const path = `anonymous/${Date.now()}-${safeName}`;
   const { error: uploadErr } = await supabase.storage.from("uploads").upload(path, file);
   if (uploadErr) throw new Error("File upload failed: " + uploadErr.message);
 
@@ -88,7 +97,13 @@ export interface SessionInsight {
 }
 
 export interface SessionData {
-  session: { id: string; title: string; input_type: string; raw_content: string | null };
+  session: {
+    id: string;
+    title: string;
+    input_type: string;
+    raw_content: string | null;
+    validation: ValidationReport | null;
+  };
   nodes: SessionNode[];
   edges: SessionEdge[];
   insights: SessionInsight[];
@@ -96,6 +111,7 @@ export interface SessionData {
 
 export interface ThinkingResult {
   newInsightCount: number;
+  validation?: { received: number; saved: number; rejected: number; unresolvedRefs: number };
 }
 
 export async function runThinkingEngine(sessionId: string): Promise<ThinkingResult> {
@@ -119,7 +135,7 @@ export async function fetchSession(sessionId: string): Promise<SessionData> {
   if (sessionRes.error) throw sessionRes.error;
 
   return {
-    session: sessionRes.data,
+    session: { ...sessionRes.data, validation: (sessionRes.data.validation as unknown as ValidationReport | null) ?? null },
     nodes: nodesRes.data || [],
     edges: edgesRes.data || [],
     insights: insightsRes.data || [],

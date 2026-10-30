@@ -17,7 +17,7 @@ const SYSTEM_PROMPT = `You are a critical thinking analysis engine. You receive 
 5. **Follow-up Questions**: Generate probing questions that would strengthen or challenge the argument structure.
 6. **Hidden Assumptions**: Identify implicit premises that the argument relies on but doesn't state.
 
-Be thorough and specific. Reference actual node labels in your analysis.`;
+Be thorough and specific. Refer to nodes by their IDs (e.g. "n3") in related_node_ids, using only IDs that appear in the NODES list.`;
 
 const THINKING_TOOL = {
   name: "report_thinking_analysis",
@@ -40,13 +40,13 @@ const THINKING_TOOL = {
               type: "string",
               description: "Detailed description. For fallacies, name the fallacy. For circular reasoning, describe the cycle. For questions, phrase as a question.",
             },
-            related_node_labels: {
+            related_node_ids: {
               type: "array",
               items: { type: "string" },
-              description: "Labels of nodes involved in this insight",
+              description: "IDs of nodes involved in this insight, exactly as listed (e.g. n3)",
             },
           },
-          required: ["type", "severity", "description", "related_node_labels"],
+          required: ["type", "severity", "description", "related_node_ids"],
         },
       },
     },
@@ -87,15 +87,20 @@ serve(async (req) => {
       );
     }
 
-    // Build readable graph description
-    const nodeMap: Record<string, string> = {};
-    const graphDescription = nodesRes.data.map((n: any) => {
-      nodeMap[n.id] = n.label;
-      return `[${n.id}] ${n.type.toUpperCase()}: "${n.label}" (confidence: ${n.confidence}) — ${n.description || "no description"}`;
-    }).join("\n");
+    // Give each node a short ID (n1, n2, ...). The model refers to nodes by these
+    // IDs, which map back exactly; matching by label broke whenever it reworded one.
+    const shortId: Record<string, string> = {};
+    const realId: Record<string, string> = {};
+    nodesRes.data.forEach((n: any, i: number) => {
+      shortId[n.id] = `n${i + 1}`;
+      realId[`n${i + 1}`] = n.id;
+    });
+    const graphDescription = nodesRes.data.map((n: any) =>
+      `[${shortId[n.id]}] ${n.type.toUpperCase()}: "${n.label}" (confidence: ${n.confidence}) — ${n.description || "no description"}`
+    ).join("\n");
 
     const edgeDescription = (edgesRes.data || []).map((e: any) =>
-      `"${nodeMap[e.source_node_id] || e.source_node_id}" —[${e.relation}]→ "${nodeMap[e.target_node_id] || e.target_node_id}" (confidence: ${e.confidence})`
+      `${shortId[e.source_node_id]} —[${e.relation}]→ ${shortId[e.target_node_id]} (confidence: ${e.confidence})`
     ).join("\n");
 
     const existingInsightDesc = (existingInsights.data || []).map((i: any) =>
@@ -123,30 +128,36 @@ Perform deep critical thinking analysis. Find circular reasoning, logical fallac
       forceTool: "report_thinking_analysis",
     }) as any;
 
-    // Reverse-map node labels to IDs
-    const labelToId: Record<string, string> = {};
-    nodesRes.data.forEach((n: any) => {
-      labelToId[n.label.toLowerCase()] = n.id;
-    });
-
-    // Insert new insights
-    const newInsights = (result.insights || []).map((i: any) => ({
-      session_id: sessionId,
-      type: i.type,
-      severity: i.severity,
-      description: i.description,
-      related_node_ids: (i.related_node_labels || [])
-        .map((label: string) => labelToId[label.toLowerCase()])
-        .filter(Boolean),
-    }));
+    // Validate and resolve references; anything unknown is rejected and counted.
+    const TYPES = new Set(["gap", "contradiction", "assumption", "question"]);
+    const SEVERITIES = new Set(["high", "medium", "low"]);
+    const received: any[] = Array.isArray(result.insights) ? result.insights : [];
+    let unresolvedRefs = 0;
+    const newInsights = received
+      .filter((i: any) => TYPES.has(i?.type) && typeof i?.description === "string" && i.description.trim())
+      .map((i: any) => {
+        const refs: string[] = Array.isArray(i.related_node_ids) ? i.related_node_ids : [];
+        const resolved = refs.map((r) => realId[r]).filter(Boolean);
+        unresolvedRefs += refs.length - resolved.length;
+        return {
+          session_id: sessionId,
+          type: i.type,
+          severity: SEVERITIES.has(i.severity) ? i.severity : "medium",
+          description: i.description.trim(),
+          related_node_ids: resolved,
+        };
+      });
 
     if (newInsights.length) {
       const { error: insertErr } = await supabase.from("insights").insert(newInsights);
-      if (insertErr) throw insertErr;
+      if (insertErr) throw new Error("Failed to save insights: " + insertErr.message);
     }
 
     return new Response(
-      JSON.stringify({ newInsightCount: newInsights.length, insights: result.insights }),
+      JSON.stringify({
+        newInsightCount: newInsights.length,
+        validation: { received: received.length, saved: newInsights.length, rejected: received.length - newInsights.length, unresolvedRefs },
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {

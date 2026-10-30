@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { saveGraph } from "../_shared/save-graph.ts";
 import { callGemini, callGeminiText } from "../_shared/gemini.ts";
 
 const corsHeaders = {
@@ -115,50 +116,20 @@ serve(async (req) => {
       forceTool: "extract_knowledge_graph",
     }) as any;
 
-    // Create session
-    const { data: session, error: sessionErr } = await supabase
-      .from("sessions")
-      .insert({ title: graph.title || "Audio Recording Analysis", input_type: "audio", raw_content: transcript })
-      .select("id")
-      .single();
-    if (sessionErr) throw sessionErr;
-    const sid = session.id;
-
-    // Insert nodes
-    const tempToReal: Record<string, string> = {};
-    if (graph.nodes?.length) {
-      const { data: insertedNodes, error: nodesErr } = await supabase
-        .from("nodes")
-        .insert(graph.nodes.map((n: any) => ({
-          session_id: sid, type: n.type, label: n.label, description: n.description, confidence: n.confidence,
-        })))
-        .select("id");
-      if (nodesErr) throw nodesErr;
-      graph.nodes.forEach((n: any, i: number) => { tempToReal[n.temp_id] = insertedNodes[i].id; });
-    }
-
-    if (graph.edges?.length) {
-      const valid = graph.edges.filter((e: any) => tempToReal[e.source] && tempToReal[e.target]);
-      if (valid.length) {
-        await supabase.from("edges").insert(valid.map((e: any) => ({
-          session_id: sid, source_node_id: tempToReal[e.source], target_node_id: tempToReal[e.target],
-          relation: e.relation, confidence: e.confidence,
-        })));
-      }
-    }
-
-    if (graph.insights?.length) {
-      await supabase.from("insights").insert(graph.insights.map((i: any) => ({
-        session_id: sid, type: i.type, severity: i.severity, description: i.description,
-        related_node_ids: (i.related_temp_ids || []).map((t: string) => tempToReal[t]).filter(Boolean),
-      })));
-    }
+    const saved = await saveGraph(
+      supabase,
+      { title: graph.title || "Audio Recording Analysis", input_type: "audio", raw_content: transcript },
+      graph, { totalChars: transcript.length, analyzedChars: Math.min(transcript.length, 15000) },
+    );
 
     return new Response(
       JSON.stringify({
-        sessionId: sid, title: graph.title || "Audio Recording Analysis",
-        nodeCount: graph.nodes?.length || 0, edgeCount: graph.edges?.length || 0,
-        insightCount: graph.insights?.length || 0,
+        sessionId: saved.sessionId,
+        title: saved.title,
+        nodeCount: saved.validation.nodes.saved,
+        edgeCount: saved.validation.edges.saved,
+        insightCount: saved.validation.insights.saved,
+        validation: saved.validation,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

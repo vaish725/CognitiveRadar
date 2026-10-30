@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import KnowledgeGraph, { type KnowledgeGraphHandle } from "@/components/KnowledgeGraph";
 import NodeDetailPanel from "@/components/NodeDetailPanel";
+import ValidationBadge from "@/components/ValidationBadge";
 import ThemeToggle from "@/components/ThemeToggle";
 import { fetchSession, runThinkingEngine, type SessionData } from "@/lib/api";
 import { toast } from "sonner";
@@ -94,7 +95,11 @@ export default function Dashboard() {
     setThinkingLoading(true);
     try {
       const result = await runThinkingEngine(sessionId);
-      toast.success(`Thinking Engine found ${result.newInsightCount} new insights`);
+      const dropped = result.validation?.unresolvedRefs ?? 0;
+      toast.success(
+        `Deep Analysis added ${result.newInsightCount} insights` +
+          (dropped ? ` · ${dropped} references to unknown nodes rejected` : ""),
+      );
       // Refresh data to show new insights
       const refreshed = await fetchSession(sessionId);
       setData(refreshed);
@@ -203,6 +208,7 @@ export default function Dashboard() {
           <Badge variant="secondary" className="text-[10px] font-normal">
             {graphNodes.length} nodes · {graphEdges.length} edges
           </Badge>
+          <ValidationBadge report={data.session.validation} />
         </div>
 
         <div className="flex items-center gap-2">
