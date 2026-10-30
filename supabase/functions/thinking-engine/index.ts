@@ -18,7 +18,7 @@ const SYSTEM_PROMPT = `You are a critical thinking analysis engine. You receive 
 5. **Follow-up Questions**: Generate probing questions that would strengthen or challenge the argument structure.
 6. **Hidden Assumptions**: Identify implicit premises that the argument relies on but doesn't state.
 
-Be thorough and specific. Refer to nodes by their IDs (e.g. "n3") in related_node_ids, using only IDs that appear in the NODES list.
+Be thorough and specific. Refer to nodes by their IDs (e.g. "n3") in related_node_ids, using only IDs that appear in the NODES list. In descriptions, refer to nodes by their labels, never by ID.
 
 Insight types: ${INSIGHT_TYPE_DESC}
 Severity: ${SEVERITY_DESC}`;
@@ -95,10 +95,17 @@ serve(async (req) => {
     // IDs, which map back exactly; matching by label broke whenever it reworded one.
     const shortId: Record<string, string> = {};
     const realId: Record<string, string> = {};
+    const labelOf: Record<string, string> = {};
     nodesRes.data.forEach((n: any, i: number) => {
       shortId[n.id] = `n${i + 1}`;
       realId[`n${i + 1}`] = n.id;
+      labelOf[`n${i + 1}`] = n.label;
     });
+    // Short IDs are internal; replace any the model writes in its text with the node's label.
+    const readable = (text: string) =>
+      text
+        .replace(/\s*\((n\d+(?:\s*,\s*n\d+)*)\)/g, "")
+        .replace(/\b(n\d+)\b/g, (m) => (labelOf[m] ? `"${labelOf[m]}"` : m));
     const graphDescription = nodesRes.data.map((n: any) =>
       `[${shortId[n.id]}] ${n.type.toUpperCase()}: "${n.label}" (confidence: ${n.confidence}) — ${n.description || "no description"}`
     ).join("\n");
@@ -147,7 +154,7 @@ Perform deep critical thinking analysis. Find circular reasoning, logical fallac
           session_id: sessionId,
           type: i.type,
           severity: SEVERITIES.has(i.severity) ? i.severity : "medium",
-          description: i.description.trim(),
+          description: readable(i.description.trim()),
           related_node_ids: resolved,
         };
       });
