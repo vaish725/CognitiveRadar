@@ -102,10 +102,10 @@ export default function NewSession() {
         result = await analyzeAudio(audioBlob);
       }
       if (result) navigate(`/dashboard/${result.sessionId}`);
-    } catch (err: any) {
+    } catch (err) {
       toast({
         title: "Analysis failed",
-        description: err.message || "Something went wrong",
+        description: err instanceof Error ? err.message : "Something went wrong",
         variant: "destructive",
       });
       setIsAnalyzing(false);

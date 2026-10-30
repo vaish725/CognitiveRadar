@@ -24,6 +24,7 @@ import NodeDetailPanel from "@/components/NodeDetailPanel";
 import ValidationBadge from "@/components/ValidationBadge";
 import ThemeToggle from "@/components/ThemeToggle";
 import { fetchSession, runThinkingEngine, type SessionData } from "@/lib/api";
+import type { GraphEdge, GraphNode } from "@/lib/graph-types";
 import { toast } from "sonner";
 
 const insightIcons: Record<string, typeof AlertTriangle> = {
@@ -103,8 +104,8 @@ export default function Dashboard() {
       const refreshed = await fetchSession(sessionId);
       setData(refreshed);
       setShowInsights(true);
-    } catch (e: any) {
-      toast.error(e.message || "Thinking engine failed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Thinking engine failed");
     } finally {
       setThinkingLoading(false);
     }
@@ -125,7 +126,7 @@ export default function Dashboard() {
     () =>
       data?.nodes.map((n) => ({
         id: n.id,
-        type: n.type as any,
+        type: n.type as GraphNode["type"],
         label: n.label,
         description: n.description || "",
         confidence: n.confidence ?? 0.8,
@@ -140,7 +141,7 @@ export default function Dashboard() {
         id: e.id,
         source: e.source_node_id,
         target: e.target_node_id,
-        relation: e.relation as any,
+        relation: e.relation as GraphEdge["relation"],
       })) || [],
     [data]
   );
