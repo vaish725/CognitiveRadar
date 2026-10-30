@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { saveGraph } from "../_shared/save-graph.ts";
+import { INSIGHT_TYPE_DESC, NODE_TYPE_DESC, ONTOLOGY_GUIDE, RELATION_DESC, SEVERITY_DESC } from "../_shared/ontology.ts";
 import { callGemini } from "../_shared/gemini.ts";
 
 const corsHeaders = {
@@ -29,7 +30,7 @@ const SYSTEM_PROMPT = `You are a knowledge graph extraction engine. You will be 
 3. **Insights**: gaps in reasoning, contradictions, hidden assumptions, and open questions.
 4. **Transcript**: A summary of the video content (at least 500 words).
 
-Use the tool provided to return the structured data.`;
+Use the tool provided to return the structured data.${ONTOLOGY_GUIDE}`;
 
 const GRAPH_TOOL = {
   name: "extract_knowledge_graph",
@@ -45,7 +46,7 @@ const GRAPH_TOOL = {
           type: "object",
           properties: {
             temp_id: { type: "string" },
-            type: { type: "string", enum: ["concept", "claim", "assumption", "evidence", "question", "contradiction"] },
+            type: { type: "string", enum: ["concept", "claim", "assumption", "evidence", "question", "contradiction"], description: NODE_TYPE_DESC },
             label: { type: "string" },
             description: { type: "string" },
             confidence: { type: "number" },
@@ -60,7 +61,7 @@ const GRAPH_TOOL = {
           properties: {
             source: { type: "string" },
             target: { type: "string" },
-            relation: { type: "string", enum: ["supports", "contradicts", "depends_on", "example_of"] },
+            relation: { type: "string", enum: ["supports", "contradicts", "depends_on", "example_of"], description: RELATION_DESC },
             confidence: { type: "number" },
           },
           required: ["source", "target", "relation", "confidence"],
@@ -71,8 +72,8 @@ const GRAPH_TOOL = {
         items: {
           type: "object",
           properties: {
-            type: { type: "string", enum: ["gap", "contradiction", "assumption", "question"] },
-            severity: { type: "string", enum: ["high", "medium", "low"] },
+            type: { type: "string", enum: ["gap", "contradiction", "assumption", "question"], description: INSIGHT_TYPE_DESC },
+            severity: { type: "string", enum: ["high", "medium", "low"], description: SEVERITY_DESC },
             description: { type: "string" },
             related_temp_ids: { type: "array", items: { type: "string" } },
           },

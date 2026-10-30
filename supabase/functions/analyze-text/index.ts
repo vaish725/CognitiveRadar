@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { saveGraph } from "../_shared/save-graph.ts";
+import { INSIGHT_TYPE_DESC, NODE_TYPE_DESC, ONTOLOGY_GUIDE, RELATION_DESC, SEVERITY_DESC } from "../_shared/ontology.ts";
 import { callGemini } from "../_shared/gemini.ts";
 
 const corsHeaders = {
@@ -14,7 +15,7 @@ const SYSTEM_PROMPT = `You are a knowledge graph extraction engine. Given text i
 2. **Edges**: relationships between nodes (supports, contradicts, depends_on, example_of).
 3. **Insights**: gaps in reasoning, contradictions, hidden assumptions, and open questions.
 
-Return structured data using the tool provided.`;
+Return structured data using the tool provided.${ONTOLOGY_GUIDE}`;
 
 const GRAPH_TOOL = {
   name: "extract_knowledge_graph",
@@ -29,7 +30,7 @@ const GRAPH_TOOL = {
           type: "object",
           properties: {
             temp_id: { type: "string", description: "Temporary ID like n1, n2, etc." },
-            type: { type: "string", enum: ["concept", "claim", "assumption", "evidence", "question", "contradiction"] },
+            type: { type: "string", enum: ["concept", "claim", "assumption", "evidence", "question", "contradiction"], description: NODE_TYPE_DESC },
             label: { type: "string", description: "Short label (2-5 words)" },
             description: { type: "string", description: "One sentence explanation" },
             confidence: { type: "number", description: "0-1 confidence score" },
@@ -44,7 +45,7 @@ const GRAPH_TOOL = {
           properties: {
             source: { type: "string", description: "temp_id of source node" },
             target: { type: "string", description: "temp_id of target node" },
-            relation: { type: "string", enum: ["supports", "contradicts", "depends_on", "example_of"] },
+            relation: { type: "string", enum: ["supports", "contradicts", "depends_on", "example_of"], description: RELATION_DESC },
             confidence: { type: "number" },
           },
           required: ["source", "target", "relation", "confidence"],
@@ -55,8 +56,8 @@ const GRAPH_TOOL = {
         items: {
           type: "object",
           properties: {
-            type: { type: "string", enum: ["gap", "contradiction", "assumption", "question"] },
-            severity: { type: "string", enum: ["high", "medium", "low"] },
+            type: { type: "string", enum: ["gap", "contradiction", "assumption", "question"], description: INSIGHT_TYPE_DESC },
+            severity: { type: "string", enum: ["high", "medium", "low"], description: SEVERITY_DESC },
             description: { type: "string" },
             related_temp_ids: { type: "array", items: { type: "string" } },
           },

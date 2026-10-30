@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { callGemini } from "../_shared/gemini.ts";
+import { INSIGHT_TYPE_DESC, SEVERITY_DESC } from "../_shared/ontology.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,7 +18,10 @@ const SYSTEM_PROMPT = `You are a critical thinking analysis engine. You receive 
 5. **Follow-up Questions**: Generate probing questions that would strengthen or challenge the argument structure.
 6. **Hidden Assumptions**: Identify implicit premises that the argument relies on but doesn't state.
 
-Be thorough and specific. Refer to nodes by their IDs (e.g. "n3") in related_node_ids, using only IDs that appear in the NODES list.`;
+Be thorough and specific. Refer to nodes by their IDs (e.g. "n3") in related_node_ids, using only IDs that appear in the NODES list.
+
+Insight types: ${INSIGHT_TYPE_DESC}
+Severity: ${SEVERITY_DESC}`;
 
 const THINKING_TOOL = {
   name: "report_thinking_analysis",
