@@ -4,9 +4,17 @@
 
 I think and remember in mind maps, and transcripts and summaries never matched that. This is the tool I wanted.
 
-![Landing page](./imgs/cognitiveRadar%20landing%20page.jpeg)
+### Landing page
 
-![Example analysis: graph, validation badge and insights](./imgs/text_input_example.png)
+![CognitiveRadar landing page](./imgs/cognitiveRadar%20landing%20page.jpeg "Landing page")
+
+*Start an analysis from pasted text, a YouTube link, an uploaded file or a voice recording.*
+
+### Example analysis
+
+![Knowledge graph of an argument for installing dining room cameras](./imgs/text_input_example.png "Example knowledge graph")
+
+*A graph of a short argument for installing dining room cameras to cut wait times. Purple nodes are claims, green nodes are evidence and the orange node is an assumption the text never states. Green lines mean "supports", pink lines "contradicts" and dashed lines "depends on". The pink chain at the top shows the staff-morale objection: a 40% micromanagement survey contradicts the claim that motivation will protect morale.*
 
 ## What it does
 
