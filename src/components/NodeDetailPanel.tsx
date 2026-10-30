@@ -45,8 +45,28 @@ export default function NodeDetailPanel({ node, allNodes, allEdges, onClose, onN
     })
     .filter((c) => c.connectedNode);
 
-  const confidence = node.confidence ?? 0.8;
-  const confidencePercent = Math.round(confidence * 100);
+  // The model's own 0-1 estimate. Not calculated or calibrated, so it is shown
+  // as a secondary note, not as a measurement.
+  const modelEstimate = node.confidence != null ? Math.round(node.confidence * 100) : null;
+
+  // Support counted from the graph itself: what actually points at this node.
+  const incoming = allEdges.filter((e) => e.target_node_id === node.id);
+  const typeOf = (id: string) => allNodes.find((n) => n.id === id)?.type;
+  const evidenceFor = incoming.filter((e) => e.relation === "supports" && typeOf(e.source_node_id) === "evidence").length;
+  const reasonsFor = incoming.filter((e) => e.relation === "supports" && typeOf(e.source_node_id) !== "evidence").length;
+  const challenges = allEdges.filter(
+    (e) => e.relation === "contradicts" && (e.target_node_id === node.id || e.source_node_id === node.id),
+  ).length;
+  const isArguable = node.type === "claim" || node.type === "assumption";
+  const status = !isArguable
+    ? null
+    : challenges > 0
+      ? { label: "Contested", cls: "bg-cr-amber/15 text-cr-amber" }
+      : evidenceFor > 0
+        ? { label: "Backed by evidence", cls: "bg-cr-emerald/15 text-cr-emerald" }
+        : reasonsFor > 0
+          ? { label: "Reasoned, no direct evidence", cls: "bg-cr-indigo/15 text-cr-indigo" }
+          : { label: "Unsupported", cls: "bg-cr-rose/15 text-cr-rose" };
 
   return (
     <motion.div
@@ -64,9 +84,9 @@ export default function NodeDetailPanel({ node, allNodes, allEdges, onClose, onN
               <Badge className={`text-[10px] capitalize ${colors.bg} ${colors.text} border-0`}>
                 {node.type}
               </Badge>
-              <span className="text-[10px] text-muted-foreground">
-                {confidencePercent}% confidence
-              </span>
+              {status && (
+                <span className={`text-[10px] rounded-full px-2 py-0.5 ${status.cls}`}>{status.label}</span>
+              )}
             </div>
             <h2 className="font-display text-sm font-semibold leading-tight">{node.label}</h2>
           </div>
@@ -78,17 +98,19 @@ export default function NodeDetailPanel({ node, allNodes, allEdges, onClose, onN
           </button>
         </div>
 
-        {/* Confidence bar */}
-        <div className="mt-3 flex items-center gap-2">
-          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${
-                confidencePercent >= 80 ? "bg-cr-emerald" :
-                confidencePercent >= 50 ? "bg-cr-amber" : "bg-cr-rose"
-              }`}
-              style={{ width: `${confidencePercent}%` }}
-            />
-          </div>
+        {/* Support counted from the graph, plus the model's own (uncalibrated) estimate */}
+        <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
+          {isArguable && (
+            <p>
+              Support in this graph: {evidenceFor} evidence · {reasonsFor} other reason{reasonsFor === 1 ? "" : "s"} ·{" "}
+              {challenges} challenge{challenges === 1 ? "" : "s"}
+            </p>
+          )}
+          {modelEstimate != null && (
+            <p title="The model's self-reported estimate. It is not calculated or calibrated, so treat it as a rough signal only.">
+              Model's own estimate: {modelEstimate}% (uncalibrated)
+            </p>
+          )}
         </div>
       </div>
 
