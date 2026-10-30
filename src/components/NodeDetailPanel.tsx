@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { X, Link2, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { type SessionNode, type SessionEdge } from "@/lib/api";
+import { computeSupport } from "@/lib/support";
 
 const NODE_TYPE_COLORS: Record<string, { bg: string; text: string }> = {
   concept: { bg: "bg-cr-cyan/10", text: "text-cr-cyan" },
@@ -50,23 +51,15 @@ export default function NodeDetailPanel({ node, allNodes, allEdges, onClose, onN
   const modelEstimate = node.confidence != null ? Math.round(node.confidence * 100) : null;
 
   // Support counted from the graph itself: what actually points at this node.
-  const incoming = allEdges.filter((e) => e.target_node_id === node.id);
-  const typeOf = (id: string) => allNodes.find((n) => n.id === id)?.type;
-  const evidenceFor = incoming.filter((e) => e.relation === "supports" && typeOf(e.source_node_id) === "evidence").length;
-  const reasonsFor = incoming.filter((e) => e.relation === "supports" && typeOf(e.source_node_id) !== "evidence").length;
-  const challenges = allEdges.filter(
-    (e) => e.relation === "contradicts" && (e.target_node_id === node.id || e.source_node_id === node.id),
-  ).length;
-  const isArguable = node.type === "claim" || node.type === "assumption";
-  const status = !isArguable
-    ? null
-    : challenges > 0
-      ? { label: "Contested", cls: "bg-cr-amber/15 text-cr-amber" }
-      : evidenceFor > 0
-        ? { label: "Backed by evidence", cls: "bg-cr-emerald/15 text-cr-emerald" }
-        : reasonsFor > 0
-          ? { label: "Reasoned, no direct evidence", cls: "bg-cr-indigo/15 text-cr-indigo" }
-          : { label: "Unsupported", cls: "bg-cr-rose/15 text-cr-rose" };
+  const { evidenceFor, reasonsFor, challenges, status: supportStatus } = computeSupport(node, allNodes, allEdges);
+  const isArguable = supportStatus !== null;
+  const STATUS_STYLE = {
+    contested: { label: "Contested", cls: "bg-cr-amber/15 text-cr-amber" },
+    backed: { label: "Backed by evidence", cls: "bg-cr-emerald/15 text-cr-emerald" },
+    reasoned: { label: "Reasoned, no direct evidence", cls: "bg-cr-indigo/15 text-cr-indigo" },
+    unsupported: { label: "Unsupported", cls: "bg-cr-rose/15 text-cr-rose" },
+  } as const;
+  const status = supportStatus ? STATUS_STYLE[supportStatus] : null;
 
   return (
     <motion.div
