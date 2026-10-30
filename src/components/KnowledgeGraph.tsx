@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
-import { type GraphNode, type GraphEdge } from "@/lib/demo-data";
+import { type GraphNode, type GraphEdge } from "@/lib/graph-types";
 
 export interface KnowledgeGraphHandle {
   getCanvas: () => HTMLCanvasElement | null;
@@ -33,6 +33,10 @@ interface Props {
 }
 
 type SimNode = { x?: number; y?: number; vx?: number; vy?: number };
+
+/** A node as the force simulation sees it: our fields plus its x/y position. */
+type DrawNode = SimNode & { id?: string | number; label?: string; type?: string; val?: number; confidence?: number };
+type DrawLink = { relation?: string; source?: string | number | DrawNode; target?: string | number | DrawNode };
 
 /** A d3-style force pulling every node toward the origin. */
 function centerPull(strength: number) {
@@ -150,15 +154,15 @@ const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function Knowledg
   }), [nodes, edges]);
 
   const paintNode = useCallback(
-    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    (node: DrawNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const r = Math.sqrt(node.val || 4) * 3;
-      const isHighlighted = highlightNodes?.has(node.id);
+      const isHighlighted = highlightNodes?.has(String(node.id));
       const color = NODE_COLORS[node.type as GraphNode["type"]] || "#999";
 
       // Glow for contradictions or highlighted
       if (node.type === "contradiction" || isHighlighted) {
         ctx.beginPath();
-        ctx.arc(node.x, node.y, r + 4, 0, 2 * Math.PI);
+        ctx.arc(node.x ?? 0, node.y ?? 0, r + 4, 0, 2 * Math.PI);
         ctx.fillStyle = isHighlighted
           ? `${color}44`
           : `${NODE_COLORS.contradiction}33`;
@@ -167,7 +171,7 @@ const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function Knowledg
 
       // Node circle
       ctx.beginPath();
-      ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+      ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, 2 * Math.PI);
       ctx.fillStyle = color;
       ctx.fill();
 
@@ -184,17 +188,19 @@ const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function Knowledg
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillStyle = document.documentElement.classList.contains("dark") ? "#e2e8f0" : "#374151";
-        ctx.fillText(label, node.x, node.y + r + 3);
+        ctx.fillText(label, node.x ?? 0, (node.y ?? 0) + r + 3);
       }
     },
     [highlightNodes]
   );
 
-  const paintLink = useCallback((link: any, ctx: CanvasRenderingContext2D) => {
+  const paintLink = useCallback((link: DrawLink, ctx: CanvasRenderingContext2D) => {
+    const source = link.source as DrawNode;
+    const target = link.target as DrawNode;
     const color = EDGE_COLORS[link.relation as GraphEdge["relation"]] || "#ccc";
     ctx.beginPath();
-    ctx.moveTo(link.source.x, link.source.y);
-    ctx.lineTo(link.target.x, link.target.y);
+    ctx.moveTo(source.x ?? 0, source.y ?? 0);
+    ctx.lineTo(target.x ?? 0, target.y ?? 0);
     ctx.strokeStyle = `${color}66`;
     ctx.lineWidth = link.relation === "contradicts" ? 1.8 : 1;
     if (link.relation === "depends_on") {
@@ -215,14 +221,14 @@ const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function Knowledg
         graphData={graphData}
         nodeCanvasObject={paintNode}
         linkCanvasObject={paintLink}
-        nodePointerAreaPaint={(node: any, color, ctx) => {
+        nodePointerAreaPaint={(node: DrawNode, color, ctx) => {
           const r = Math.sqrt(node.val || 4) * 3 + 4;
           ctx.beginPath();
-          ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+          ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, 2 * Math.PI);
           ctx.fillStyle = color;
           ctx.fill();
         }}
-        onNodeClick={(node: any) => onNodeClick?.(node.id)}
+        onNodeClick={(node: DrawNode) => onNodeClick?.(String(node.id))}
         enableZoomInteraction
         enablePanInteraction
         warmupTicks={120}

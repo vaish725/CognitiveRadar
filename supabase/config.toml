@@ -1,1 +1,2 @@
-project_id = "ogvrlbqgwuqwdafaescu"
+# Local project name; link to your hosted project with `supabase link --project-ref <ref>`.
+project_id = "cognitiveradar"
