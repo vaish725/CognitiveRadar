@@ -22,7 +22,7 @@ function extractVideoId(url: string): string | null {
   return null;
 }
 
-const SYSTEM_PROMPT = `You are a knowledge graph extraction engine. You will be given a YouTube video URL. Watch/analyze the video and extract:
+const SYSTEM_PROMPT = `You are a knowledge graph extraction engine. You will be given a YouTube video. Watch it (speech and visuals) and extract:
 1. **Nodes**: concepts, claims, assumptions, evidence, questions, and contradictions found in the video.
 2. **Edges**: relationships between nodes (supports, contradicts, depends_on, example_of).
 3. **Insights**: gaps in reasoning, contradictions, hidden assumptions, and open questions.
@@ -111,21 +111,34 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get video title
-    const titleRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
-    const titleData = await titleRes.json();
-    const videoTitle = titleData.title || "YouTube Analysis";
+    // Title lookup is cosmetic; don't fail the analysis if it's unavailable.
+    let videoTitle = "YouTube Analysis";
+    try {
+      const titleRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+      videoTitle = (await titleRes.json()).title || videoTitle;
+    } catch (_) {
+      console.warn("noembed title lookup failed");
+    }
 
     const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
     // Call Google Gemini directly
     const graph = await callGemini({
       systemPrompt: SYSTEM_PROMPT,
-      userContent: `Analyze this YouTube video and extract the knowledge graph. Video URL: ${youtubeUrl}\n\nVideo title: ${videoTitle}`,
+      // Send the video itself as a fileData part. A URL inside a text prompt is
+      // just text: the model never sees the video and guesses from the title.
+      userContent: [
+        { fileData: { fileUri: youtubeUrl } },
+        { text: `Analyze this video and extract the knowledge graph. Video title: ${videoTitle}` },
+      ],
       tools: [GRAPH_TOOL],
       forceTool: "extract_knowledge_graph",
     }) as any;
 
-    const transcript = graph.transcript_summary || `Analysis of: ${videoTitle}`;
+    // This is a model-written summary of the video, not a verbatim transcript. Label it as such.
+    const transcript = `[Model-written summary of the video, not a verbatim transcript]\n\n${
+      graph.transcript_summary || `Analysis of: ${videoTitle}`
+    }`;
 
     // Create session
     const { data: session, error: sessionErr } = await supabase

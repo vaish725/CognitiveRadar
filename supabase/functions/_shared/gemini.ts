@@ -2,7 +2,39 @@
 // Used by all edge functions in CognitiveRadar
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
-const GEMINI_MODEL = "gemini-2.5-flash";
+// Override with the GEMINI_MODEL secret when Google retires a model.
+const GEMINI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+
+export type GeminiPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } }
+  | { fileData: { fileUri: string; mimeType?: string } };
+
+function toParts(content: string | GeminiPart[]): GeminiPart[] {
+  return typeof content === "string" ? [{ text: content }] : content;
+}
+
+async function postGemini(body: unknown) {
+  const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+  if (!apiKey) throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
+
+  // Key goes in a header, not the URL, so it never shows up in request logs.
+  const response = await fetch(`${GEMINI_API_BASE}/models/${GEMINI_MODEL}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error("Gemini API error:", response.status, errText);
+    if (response.status === 429) throw new Error("Rate limit exceeded, please try again later.");
+    if (response.status === 403) throw new Error("Gemini API key is invalid or quota exceeded.");
+    if (response.status === 404) throw new Error(`Gemini model "${GEMINI_MODEL}" not found. Set the GEMINI_MODEL secret.`);
+    throw new Error(`Gemini API error: ${response.status}`);
+  }
+  return await response.json();
+}
 
 export interface GeminiToolCall {
   name: string;
@@ -20,7 +52,7 @@ export async function callGemini({
   forceTool,
 }: {
   systemPrompt: string;
-  userContent: string | Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
+  userContent: string | GeminiPart[];
   tools: Array<{
     name: string;
     description: string;
@@ -28,21 +60,7 @@ export async function callGemini({
   }>;
   forceTool?: string;
 }): Promise<Record<string, unknown>> {
-  const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-  if (!apiKey) throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
-
-  // Build contents
-  const contents: any[] = [];
-  
-  if (typeof userContent === "string") {
-    contents.push({ role: "user", parts: [{ text: userContent }] });
-  } else {
-    contents.push({ role: "user", parts: userContent.map(p => {
-      if (p.text) return { text: p.text };
-      if (p.inlineData) return { inlineData: p.inlineData };
-      return p;
-    })});
-  }
+  const contents = [{ role: "user", parts: toParts(userContent) }];
 
   const body: any = {
     system_instruction: { parts: [{ text: systemPrompt }] },
@@ -65,22 +83,7 @@ export async function callGemini({
     };
   }
 
-  const url = `${GEMINI_API_BASE}/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("Gemini API error:", response.status, errText);
-    if (response.status === 429) throw new Error("Rate limit exceeded, please try again later.");
-    if (response.status === 403) throw new Error("Gemini API key is invalid or quota exceeded.");
-    throw new Error(`Gemini API error: ${response.status}`);
-  }
-
-  const data = await response.json();
+  const data = await postGemini(body);
   const candidate = data.candidates?.[0];
   if (!candidate) throw new Error("No response from Gemini");
 
@@ -113,18 +116,9 @@ export async function callGeminiText({
 }: {
   prompt?: string;
   systemPrompt?: string;
-  multimodalParts?: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
+  multimodalParts?: GeminiPart[];
 }): Promise<string> {
-  const apiKey = Deno.env.get("GOOGLE_GEMINI_API_KEY");
-  if (!apiKey) throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
-
-  const parts = multimodalParts
-    ? multimodalParts.map(p => {
-        if (p.text) return { text: p.text };
-        if (p.inlineData) return { inlineData: p.inlineData };
-        return p;
-      })
-    : [{ text: prompt || "" }];
+  const parts = multimodalParts ?? [{ text: prompt || "" }];
 
   const body: any = {
     contents: [{ role: "user", parts }],
@@ -134,19 +128,11 @@ export async function callGeminiText({
     body.system_instruction = { parts: [{ text: systemPrompt }] };
   }
 
-  const url = `${GEMINI_API_BASE}/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("Gemini API error:", response.status, errText);
-    throw new Error(`Gemini API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  const data = await postGemini(body);
+  // Join every text part (skipping model "thought" parts) instead of only the first.
+  const out = (data.candidates?.[0]?.content?.parts || [])
+    .filter((p: { text?: string; thought?: boolean }) => p.text && !p.thought)
+    .map((p: { text: string }) => p.text)
+    .join("");
+  return out;
 }
