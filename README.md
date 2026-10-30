@@ -6,6 +6,8 @@ I think and remember in mind maps, and transcripts and summaries never matched t
 
 ![Landing page](./imgs/cognitiveRadar%20landing%20page.jpeg)
 
+![Example analysis: graph, validation badge and insights](./imgs/text_input_example.png)
+
 ## What it does
 
 1. You provide content. Gemini reads it and fills in a **typed schema** (forced function calling, so it can't reply in free text):

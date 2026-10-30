@@ -30,3 +30,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Local only
+supabase/.temp/
+PROJECT_DEEP_DIVE.md
+CognitiveRadar_v3_action_plan.md
