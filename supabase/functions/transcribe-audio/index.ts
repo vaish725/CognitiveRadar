@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { saveGraph } from "../_shared/save-graph.ts";
+import { MAX_INLINE_BYTES, toBase64 } from "../_shared/base64.ts";
 import { callGemini, callGeminiText } from "../_shared/gemini.ts";
 
 const corsHeaders = {
@@ -89,8 +90,14 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Convert audio to base64 for Gemini multimodal
+    if (audioFile.size > MAX_INLINE_BYTES) {
+      return new Response(
+        JSON.stringify({ error: "Recording is too long. Please keep it under about 14 MB." }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const arrayBuf = await audioFile.arrayBuffer();
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)));
+    const base64 = toBase64(arrayBuf);
     const mime = audioFile.type || "audio/webm";
 
     // Transcribe with Gemini

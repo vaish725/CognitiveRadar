@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { saveGraph } from "../_shared/save-graph.ts";
+import { MAX_INLINE_BYTES, toBase64 } from "../_shared/base64.ts";
 import { callGemini, callGeminiText } from "../_shared/gemini.ts";
 
 const corsHeaders = {
@@ -92,13 +93,20 @@ serve(async (req) => {
     if (dlErr) throw new Error("Failed to download file: " + dlErr.message);
 
     const ext = (fileName || storagePath).split(".").pop()?.toLowerCase() || "";
+    const needsInline = ["pdf", "mp3", "wav", "m4a", "ogg", "webm", "mp4"].includes(ext);
+    if (needsInline && fileData.size > MAX_INLINE_BYTES) {
+      return new Response(
+        JSON.stringify({ error: `File is ${(fileData.size / 1048576).toFixed(1)} MB; PDF and media files must be under 14 MB.` }),
+        { status: 413, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     let textContent = "";
 
     if (["txt", "md", "csv"].includes(ext)) {
       textContent = await fileData.text();
     } else if (ext === "pdf") {
       // Use Gemini multimodal for PDF extraction
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(await fileData.arrayBuffer())));
+      const base64 = toBase64(await fileData.arrayBuffer());
       textContent = await callGeminiText({
         multimodalParts: [
           { text: "Extract all text content from this PDF document. Return only the extracted text, no commentary." },
@@ -107,7 +115,7 @@ serve(async (req) => {
       });
     } else if (["mp3", "wav", "m4a", "ogg", "webm", "mp4"].includes(ext)) {
       // Use Gemini multimodal for audio/video transcription
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(await fileData.arrayBuffer())));
+      const base64 = toBase64(await fileData.arrayBuffer());
       const mimeMap: Record<string, string> = {
         mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4",
         ogg: "audio/ogg", webm: "audio/webm", mp4: "video/mp4",
