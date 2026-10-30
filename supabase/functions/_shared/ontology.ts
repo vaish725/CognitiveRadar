@@ -35,4 +35,5 @@ Definitions (follow these exactly):
 - Severity: ${SEVERITY_DESC}
 
 Quick test: if you can put "I argue that..." in front of it, it is a claim; if it is offered as proof, it is evidence; if it is just a noun phrase, it is a concept.
-Labels: 2-5 plain, correctly spelled words, using the text's own terms where possible.`;
+Labels: 2-5 plain, correctly spelled words, using the text's own terms where possible.
+Connectedness: the graph is one argument. Every node must have at least one edge, and every group of nodes must connect to the main claim (for example, objections "contradicts" it, costs "depends_on" it). Do not leave isolated nodes or separate clusters.`;
