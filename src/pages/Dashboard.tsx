@@ -49,7 +49,6 @@ const severityColors: Record<string, string> = {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { sessionId } = useParams<{ sessionId: string }>();
-  const [layout, setLayout] = useState<"force" | "radial">("force");
   const [showTranscript, setShowTranscript] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -257,23 +256,7 @@ export default function Dashboard() {
             <span className="hidden sm:inline text-xs">JSON</span>
           </Button>
 
-          <div className="ml-3 flex rounded-full border bg-muted p-0.5">
-            <button
-              onClick={() => setLayout("force")}
-              className={`text-xs px-3 py-1 rounded-full transition-colors ${
-                layout === "force" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"
-              }`}
-            >
-              Force
-            </button>
-            <button
-              onClick={() => setLayout("radial")}
-              className={`text-xs px-3 py-1 rounded-full transition-colors ${
-                layout === "radial" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"
-              }`}
-            >
-              Radial
-            </button>
+          <div className="ml-3">
           <ThemeToggle />
           </div>
         </div>
@@ -286,7 +269,6 @@ export default function Dashboard() {
             ref={graphRef}
             nodes={graphNodes}
             edges={graphEdges}
-            layout={layout}
             highlightNodes={highlightNodes}
             onNodeClick={(id) => {
               setSelectedNodeId(id);
@@ -406,17 +388,29 @@ export default function Dashboard() {
 
         <div className="absolute bottom-6 right-6 z-20 flex flex-col gap-1.5">
           <div className="glass rounded-xl flex flex-col overflow-hidden">
-            <button className="p-2 hover:bg-accent/60 transition-colors">
+            <button
+              className="p-2 hover:bg-accent/60 transition-colors"
+              onClick={() => graphRef.current?.zoomIn()}
+              title="Zoom in"
+            >
               <ZoomIn className="w-4 h-4 text-muted-foreground" />
             </button>
             <div className="border-t" />
-            <button className="p-2 hover:bg-accent/60 transition-colors">
+            <button
+              className="p-2 hover:bg-accent/60 transition-colors"
+              onClick={() => graphRef.current?.zoomOut()}
+              title="Zoom out"
+            >
               <ZoomOut className="w-4 h-4 text-muted-foreground" />
             </button>
             <div className="border-t" />
             <button
               className="p-2 hover:bg-accent/60 transition-colors"
-              onClick={() => setHighlightNodes(new Set())}
+              onClick={() => {
+                setHighlightNodes(new Set());
+                graphRef.current?.fit();
+              }}
+              title="Fit to view and clear highlights"
             >
               <RotateCcw className="w-4 h-4 text-muted-foreground" />
             </button>

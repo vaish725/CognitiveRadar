@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import { type GraphNode, type GraphEdge } from "@/lib/demo-data";
 
 export interface KnowledgeGraphHandle {
   getCanvas: () => HTMLCanvasElement | null;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  fit: () => void;
 }
 
 const NODE_COLORS: Record<GraphNode["type"], string> = {
@@ -25,19 +28,33 @@ const EDGE_COLORS: Record<GraphEdge["relation"], string> = {
 interface Props {
   nodes: GraphNode[];
   edges: GraphEdge[];
-  layout: "force" | "radial";
   highlightNodes?: Set<string>;
   onNodeClick?: (nodeId: string) => void;
 }
 
-const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function KnowledgeGraph({ nodes, edges, layout, highlightNodes, onNodeClick }, ref) {
+const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function KnowledgeGraph({ nodes, edges, highlightNodes, onNodeClick }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<ForceGraphMethods | undefined>();
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
 
+  const fit = useCallback(() => fgRef.current?.zoomToFit(400, 60), []);
+  const zoomBy = useCallback((factor: number) => {
+    const fg = fgRef.current;
+    if (fg) fg.zoom(fg.zoom() * factor, 250);
+  }, []);
+
   useImperativeHandle(ref, () => ({
     getCanvas: () => containerRef.current?.querySelector("canvas") || null,
+    zoomIn: () => zoomBy(1.4),
+    zoomOut: () => zoomBy(1 / 1.4),
+    fit,
   }));
+
+  // Fit the whole graph into view once the layout settles for new data.
+  const needsFit = useRef(true);
+  useEffect(() => {
+    needsFit.current = true;
+  }, [nodes, edges]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -50,20 +67,8 @@ const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function Knowledg
     return () => ro.disconnect();
   }, []);
 
-  // Apply radial layout as initial positions
-  useEffect(() => {
-    const fg = fgRef.current;
-    if (!fg) return;
-    if (layout === "radial") {
-      fg.d3Force("charge")?.strength(-120);
-      fg.d3ReheatSimulation();
-    } else {
-      fg.d3Force("charge")?.strength(-80);
-      fg.d3ReheatSimulation();
-    }
-  }, [layout]);
-
-  const graphData = {
+  // Memoized so re-renders (e.g. highlighting) don't restart the simulation.
+  const graphData = useMemo(() => ({
     nodes: nodes.map((n) => ({
       id: n.id,
       label: n.label,
@@ -76,7 +81,7 @@ const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function Knowledg
       target: e.target,
       relation: e.relation,
     })),
-  };
+  }), [nodes, edges]);
 
   const paintNode = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -155,6 +160,12 @@ const KnowledgeGraph = forwardRef<KnowledgeGraphHandle, Props>(function Knowledg
         enableZoomInteraction
         enablePanInteraction
         cooldownTicks={100}
+        onEngineStop={() => {
+          if (needsFit.current) {
+            needsFit.current = false;
+            fit();
+          }
+        }}
         backgroundColor="rgba(0,0,0,0)"
       />
     </div>
