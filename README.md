@@ -1,239 +1,119 @@
 # CognitiveRadar
 
-A modern, AI-powered knowledge graph and visualization platform built with React, TypeScript, and Vite.
+**See the structure of thinking.** CognitiveRadar turns unstructured content (pasted text, a YouTube video, an uploaded file or a voice recording) into an interactive knowledge graph of the *reasoning* inside it: claims, the evidence behind them, and the assumptions nobody stated.
 
-## Overview
+I think and remember in mind maps, and transcripts and summaries never matched that. This is the tool I wanted.
 
-CognitiveRadar is an intelligent web application that helps users organize, visualize, and explore complex ideas and concepts through an interactive knowledge graph. It leverages AI to extract relationships, identify patterns, and provide insights from various data sources.
+![Landing page](./imgs/cognitiveRadar%20landing%20page.jpeg)
 
-## Features
+## What it does
 
-- **Interactive Knowledge Graph**: Visualize ideas and their relationships in real-time
-- **AI-Powered Extraction**: Automatically extract concepts, claims, and relationships from text
-- **Real-time Collaboration**: Supabase-backed real-time updates and synchronization
-- **Multi-source Integration**: Support for text, URLs, and various content formats
-- **Advanced Analytics**: Gain insights through pattern detection and relationship analysis
-- **Responsive Design**: Beautiful UI that works on desktop and mobile devices
-- **Dark Mode Support**: Theme toggle for comfortable viewing in any environment
+1. You provide content. Gemini reads it and fills in a **typed schema** (forced function calling, so it can't reply in free text):
+   - **6 node types:** concept, claim, assumption, evidence, question, contradiction
+   - **4 relations:** supports, contradicts, depends_on, example_of
+   - **Insights:** gaps, contradictions, hidden assumptions, open questions, each rated by severity
+2. The output is **validated before it's stored** (see below), then saved to Postgres.
+3. The dashboard draws a force-directed graph. Click a node to see its connections; click an insight to highlight the nodes it's about.
+4. **Deep Analysis** sends the saved graph back to Gemini for a second pass: circular reasoning, fallacies, unsupported claims, weak evidence.
 
-## Screenshots
+## How it works
 
-### Landing Page
-![CognitiveRadar Landing Page](./imgs/cognitiveRadar%20landing%20page.jpeg)
-The main entry point to CognitiveRadar where users can create new sessions or access existing ones. The landing page provides a clean, intuitive interface with navigation to all major features and real-time collaboration capabilities.
-
-### Text Input Page
-![CognitiveRadar Input Page](./imgs/cognitiveRadar%20input%20page.jpeg)
-The core analysis interface with the text input area prominently displayed. Users can paste or type content here for AI-powered analysis. The page shows the integrated layout with the text input panel, ready to process user submissions.
-
-### Analysis Example
-![CognitiveRadar Text Input Example](./imgs/cognitiveRadar%20text%20input%20example.jpeg)
-A demonstration of CognitiveRadar in action, showing how the application processes and visualizes analyzed text. This screenshot illustrates the knowledge graph generation, concept extraction, and relationship mapping capabilities.
-
-## Tech Stack
-
-### Frontend
-- **React 18+** - UI library
-- **TypeScript** - Type-safe JavaScript
-- **Vite** - Lightning-fast build tool
-- **Tailwind CSS** - Utility-first CSS framework
-- **D3.js** - Data visualization
-- **Shadcn/ui** - High-quality React components
-- **Supabase** - Backend as a Service
-
-### Backend
-- **Supabase Edge Functions** (Deno/TypeScript) - Serverless functions for AI analysis and data operations
-- **PostgreSQL/Supabase** - Data storage with Row Level Security
-- **Google Gemini API** - LLM-powered knowledge graph extraction and critical-thinking analysis
-
-> **Note:** The backend was originally planned as a standalone Python/FastAPI service (see early commit history). It was replaced with Supabase Edge Functions to cut scope for a solo-maintained project — one platform for DB, storage, auth, and compute instead of a separately hosted API service.
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+ and npm/yarn/pnpm
-- Bun (optional, but recommended)
-- Python 3.9+ (for backend)
-
-### Installation
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd idea-weaver
+```mermaid
+flowchart LR
+  B[React app] -->|invoke| F[Supabase Edge Function]
+  F -->|content + typed schema| G[Gemini]
+  G -->|nodes, edges, insights with temp IDs| V[Validate]
+  V -->|accepted rows + rejection report| DB[(Postgres)]
+  B -->|read| DB
 ```
 
-2. Install dependencies:
+### Validating model output
+
+Model output is treated as untrusted until checked. The model invents temporary IDs (`n1`, `n2`, ...) so edges can refer to nodes that don't exist yet. `supabase/functions/_shared/save-graph.ts` then:
+
+- gives each valid node its own UUID and resolves every reference through an exact lookup table, not by row order;
+- **rejects** nodes with types outside the schema, edges that point at nodes the model never created, and invalid relations;
+- strips insight references to unknown nodes;
+- checks every insert, and removes the session if any step fails, so there are no half-saved graphs;
+- stores a **validation report** on the session. The dashboard shows it as a badge (received / saved / rejected, and whether the input was truncated).
+
+Deep Analysis works the same way: nodes are sent with short IDs, and only IDs from that list are accepted back.
+
+## Inputs
+
+| Input | What the model actually receives |
+|---|---|
+| Pasted text | The text |
+| YouTube link | The video itself, as a Gemini `fileData` part (public videos only). The "transcript" panel shows a model-written summary and is labelled as such |
+| PDF | The PDF (Gemini extracts the text) |
+| Audio / MP4 / mic recording | The file; Gemini transcribes the **speech**, then the transcript is analyzed. Visual content of uploaded MP4s is not analyzed |
+| txt / md / csv | The text |
+
+Long inputs: the first 15,000 characters of uploads and recordings are analyzed, and the validation badge says so when this happens. PDF and media files must be under 14 MB.
+
+## Tech stack
+
+- **Frontend:** React 18, TypeScript, Vite, Tailwind, shadcn/ui, react-force-graph-2d, framer-motion
+- **Backend:** Supabase Edge Functions (Deno), Postgres, Storage
+- **Model:** Google Gemini via REST (`generateContent`, forced function calling); model set by the `GEMINI_MODEL` secret
+
+## Run it yourself
+
+Requires Node 18+ and a Supabase project.
+
 ```bash
 npm install
-# or
-bun install
+
+# Backend
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
+npx supabase db push                       # applies supabase/migrations
+npx supabase secrets set GOOGLE_GEMINI_API_KEY=<key> GEMINI_MODEL=<model-id>
+npx supabase functions deploy              # deploys all 5 functions
+
+# Frontend
+cp .env.example .env                       # fill in URL + anon key from Project Settings → API
+npm run dev                                # http://localhost:8080
 ```
 
-3. Set up environment variables:
+Pick `GEMINI_MODEL` from the [current Gemini model list](https://ai.google.dev/gemini-api/docs/models). If it's unset, the code falls back to `gemini-2.5-flash`. If function calls return 401, use the project's legacy `anon` JWT key in `.env`, or deploy with `--no-verify-jwt`.
+
+## Tests
+
 ```bash
-cp .env.local.example .env.local
-# Edit .env.local with your configuration
+deno test supabase/functions/_shared/      # validation + base64 encoding
+npm run lint
 ```
 
-4. Start the development server:
-```bash
-npm run dev
-# or
-bun dev
-```
+`save-graph.test.ts` covers rejected references, schema violations and the cleanup when an insert fails. `base64.test.ts` round-trips a 5 MB buffer (the old one-liner crashed above ~500 KB).
 
-The application will be available at `http://localhost:5173`
-
-## Project Structure
+## Project structure
 
 ```
-├── src/
-│   ├── components/        # React components
-│   │   ├── AnimatedGraph.tsx      # D3.js graph visualization
-│   │   ├── KnowledgeGraph.tsx     # Graph container
-│   │   ├── NodeDetailPanel.tsx    # Node details display
-│   │   ├── ThemeToggle.tsx        # Theme switcher
-│   │   └── ui/                    # Shadcn/ui components
-│   ├── hooks/             # Custom React hooks
-│   ├── types/             # TypeScript type definitions
-│   ├── lib/               # Utility functions
-│   ├── App.tsx            # Main application component
-│   └── index.css          # Global styles
-├── public/                # Static assets
-├── package.json           # Dependencies and scripts
-├── vite.config.ts         # Vite configuration
-├── tailwind.config.ts     # Tailwind CSS configuration
-└── tsconfig.json          # TypeScript configuration
+src/
+  pages/              Landing, NewSession (input), Dashboard (graph), Sessions
+  components/         KnowledgeGraph, NodeDetailPanel, ValidationBadge, ui/ (shadcn)
+  lib/api.ts          All calls to Supabase
+supabase/
+  functions/
+    _shared/          gemini.ts (API client), save-graph.ts (validation + save), base64.ts
+    analyze-text/  analyze-youtube/  analyze-upload/  transcribe-audio/  thinking-engine/
+  migrations/         Schema, enums, storage bucket, access policies
 ```
 
-## Available Scripts
+## Status and limitations
 
-### Development
-```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run preview      # Preview production build locally
-```
+This is a working prototype, not a finished product.
 
-### Testing & Linting
-```bash
-npm run test         # Run unit tests
-npm run lint         # Run ESLint
-```
+- **Batch, not real time.** Each input is analyzed once. A graph that grows live as people speak was the original design and is the main planned feature.
+- **No accounts.** All sessions are visible to anyone using the same deployment. The browser can only read and delete; all writes go through the edge functions.
+- **No rate limiting** on the Gemini-backed functions yet. Use a spending cap on the API key.
+- **Quality is not yet measured.** There is no labelled evaluation set, so extraction accuracy is unknown. Node types are only as consistent as the model's reading of them.
+- **Mostly untested frontend.** Tests cover the backend validation and encoding only.
 
-## Configuration
+## History
 
-### Environment Variables
-
-Create a `.env.local` file in the root directory:
-
-```env
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_API_URL=http://localhost:8000
-```
-
-## API Documentation
-
-There is no separate REST API. The frontend calls Supabase Edge Functions directly via `supabase.functions.invoke(...)` (see [src/lib/api.ts](./src/lib/api.ts)).
-
-### Edge Functions
-
-- `analyze-text` - Extract a knowledge graph (nodes, edges, insights) from pasted text
-- `analyze-youtube` - Extract a knowledge graph from a YouTube URL
-- `analyze-upload` - Extract a knowledge graph from an uploaded file (text, PDF, audio/video)
-- `transcribe-audio` - Transcribe a recorded audio clip, then extract a knowledge graph
-- `thinking-engine` - Re-analyze an existing session's graph for logical gaps, contradictions, and follow-up questions
-
-## Database Schema
-
-### Supabase Tables
-
-- `nodes` - Graph nodes representing concepts, claims, etc.
-- `edges` - Relationships between nodes
-- `insights` - Generated insights and analysis
-- `users` - User profiles and preferences
-
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Create a feature branch (`git checkout -b feature/amazing-feature`)
-2. Commit your changes (`git commit -m 'Add amazing feature'`)
-3. Push to the branch (`git push origin feature/amazing-feature`)
-4. Open a Pull Request
-
-## Code Style
-
-- Use TypeScript for type safety
-- Follow ESLint and Prettier configurations
-- Write meaningful commit messages
-- Add comments for complex logic
-
-## Performance Considerations
-
-- Components are optimized with React.memo and useCallback
-- Graph visualization uses D3.js with efficient rendering
-- Real-time updates are batched for performance
-- Pagination is implemented for large datasets
-
-## Browser Support
-
-- Chrome/Chromium (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue**: Dev server not starting
-```bash
-# Clear cache and reinstall
-rm -rf node_modules .next
-npm install
-npm run dev
-```
-
-**Issue**: Supabase connection errors
-- Verify `.env.local` variables are correct
-- Check Supabase project is active
-- Ensure API key has proper permissions
-
-## Performance Optimization
-
-- Code splitting with dynamic imports
-- Image optimization with WebP format
-- CSS minification and optimization
-- Bundle analysis available via `npm run analyze`
-
-## Security
-
-- All API requests are authenticated via Supabase
-- Environment variables are never committed
-- XSS protection through React's built-in sanitization
-- CSRF tokens for state-changing operations
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Support
-
-For issues, questions, or suggestions:
-- Open an issue on GitHub
-- Contact the development team
-- Check documentation in `/docs`
-
-## Changelog
-
-See [CHANGELOG.md](./CHANGELOG.md) for version history and updates.
-
-
----
-
-**Last Updated**: April 2026
-**Version**: 2.0.0
+- **v1 (March 2026):** Python/FastAPI + Firestore + Next.js with WebSocket streaming, built phase by phase from a detailed plan. It grew to ~16,000 lines before the parts ran together end to end, and I stopped it. It's still in the git history (up to `059a502`).
+- **v2 (April 2026):** rebuilt thin on Supabase, scaffolded with the Lovable AI app builder, to get a working end-to-end baseline.
+- **October 2026:** reviewed the v2 code and fixed what the review found: YouTube was sending the URL as text, so the model never saw the video; edge and insight inserts weren't checked; large files overflowed the call stack; upload policies blocked anonymous users; the API key was sent in the URL.
+- **Next:** a rebuild of the original design in thin, deployed slices, with an evaluation set from the start and the live streaming graph last.
